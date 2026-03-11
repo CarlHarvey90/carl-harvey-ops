@@ -1,40 +1,82 @@
-# Immich Backup Restore
+# Immich Recovery
 
 **Project:** Home Server  
-**Trigger:** Immich data loss or VM failure
+**Trigger:** Immich web UI unreachable, photos not loading, or VM failure
 
-## Prerequisites
-- Access to home server (SSH or console)
-- Backup storage accessible
+---
 
-## Steps
+## Immich web UI not loading
 
-### 1. SSH into home server
+### 1. Check the VM is running in Proxmox
 ```bash
-ssh user@192.168.x.x
+qm status IMMICH_VMID
 ```
 
-### 2. Stop Immich containers
+If stopped:
 ```bash
-cd /opt/immich
-docker compose down
+qm start IMMICH_VMID
 ```
 
-### 3. Restore data from backup
+### 2. SSH into Immich VM and check Docker stack
 ```bash
-# Restore database
-pg_restore -U postgres immich_backup.dump
-
-# Restore media files
-rsync -av /backup/immich/library/ /opt/immich/library/
+ssh user@IMMICH_IP
+cd /path/to/immich
+docker compose ps
 ```
 
-### 4. Restart and verify
+All services should show `Up`. Key containers:
+- `immich_server`
+- `immich_microservices`
+- `immich_machine_learning`
+- `database` (PostgreSQL)
+- `redis`
+
+### 3. Restart the stack if containers are down
 ```bash
 docker compose up -d
-# Check logs
 docker compose logs -f
 ```
 
-## Rollback
-Restore previous backup snapshot if restore fails.
+---
+
+## Photos not showing / library empty
+
+This is almost always an NFS issue. See [HexOS NFS Recovery](hexos-nfs-recovery.md).
+
+Quick check:
+```bash
+# On Immich VM — is the photo library mount available?
+ls /mnt/photos
+```
+
+If empty or errors, the NFS mount from HexOS has dropped.
+
+---
+
+## Full VM restore from Proxmox snapshot
+
+If the Immich VM is corrupted or unrecoverable:
+
+```bash
+# On Proxmox host
+qm stop IMMICH_VMID
+qm rollback IMMICH_VMID snapshot-name
+qm start IMMICH_VMID
+```
+
+After restore, verify:
+1. NFS mount to HexOS is working
+2. Docker stack is running
+3. Web UI is accessible at `http://IMMICH_IP:2283`
+
+---
+
+## Notes
+
+- Photos themselves live on HexOS — restoring the Immich VM does not risk photo data loss
+- The Immich **database** (albums, faces, metadata, user accounts) lives inside the Immich VM — this should be backed up separately
+- Database backup command:
+```bash
+docker compose exec database pg_dumpall -U postgres > immich-db-backup-$(date +%Y%m%d).sql
+```
+- Store database backups on HexOS, not on the Immich VM itself

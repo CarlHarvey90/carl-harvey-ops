@@ -86,3 +86,50 @@ graph LR
     Test -->|on pass| Deploy[SSH deploy\nto EC2]
     Deploy -->|docker compose\nup --build| EC2[EC2 Instance]
 ```
+
+---
+
+## Home Server — Full VM Architecture
+
+```mermaid
+graph TB
+    subgraph Proxmox Host
+        subgraph Storage Layer
+            HexOS[HexOS\nTrueNAS-based\nPersonal files]
+        end
+
+        subgraph Application Layer
+            Immich[Immich\nPhoto management\nDocker Compose]
+            Debian[Debian\nDev + testing\nOn demand]
+        end
+
+        subgraph Isolated
+            OpenClaw[OpenClaw Bot\nNo LAN\nNo internet\nSSH only]
+        end
+
+        HexOS -->|NFS share - photos| Immich
+    end
+
+    You -->|Local network| HexOS
+    You -->|http - port 2283| Immich
+    You -->|SSH only| OpenClaw
+    You -->|SSH| Debian
+    You -->|https - port 8006| Proxmox[Proxmox UI]
+
+    Internet -.->|Blocked| OpenClaw
+    LAN -.->|Blocked| OpenClaw
+```
+
+---
+
+## Home Server — Dependency Map
+
+Start order matters. HexOS must be up before Immich.
+
+```mermaid
+graph LR
+    Proxmox -->|starts| HexOS
+    HexOS -->|NFS ready| Immich
+    Proxmox -->|starts independently| OpenClaw
+    Proxmox -->|starts independently| Debian
+```
