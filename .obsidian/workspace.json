@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/projects/home-server/index.md",
+                "file": "docs/projects/geostrap/geostrap-local-runbook.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "index"
+              "title": "geostrap-local-runbook"
             }
           }
         ]
@@ -185,8 +185,9 @@
   },
   "active": "1236ce680ae13502",
   "lastOpenFiles": [
-    "docs/projects/geostrap/index.md",
     "docs/projects/home-server/index.md",
+    "docs/projects/geostrap/geostrap-local-runbook.md",
+    "docs/projects/geostrap/index.md",
     "docs/architecture/index.md"
   ]
 }
