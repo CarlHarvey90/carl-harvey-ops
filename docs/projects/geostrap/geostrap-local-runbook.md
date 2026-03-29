@@ -56,7 +56,7 @@ ESP32 Devices ──► Ingest API (8000)
 
 ---
 
-## 3. Prerequisites
+## 3. Prerequisites (Windows)
 
 The following must be installed on the machine before starting:
 
