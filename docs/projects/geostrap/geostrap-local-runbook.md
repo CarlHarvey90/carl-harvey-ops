@@ -1,6 +1,6 @@
 # GeoStrap — Local Development & Support Runbook
 
-**Version:** 0.3  
+**Version:** 0.4  
 **Environment:** Local (Docker Compose)  
 **Audience:** Level 1/2 Technical Support  
 **Last updated:** April 2026
@@ -45,16 +45,17 @@ The local environment runs five components across three terminals:
 | Component | What it does | Where it runs |
 |-----------|-------------|---------------|
 | PostgreSQL 16 | Primary database — stores all assets, tags, reads, assignments, audit logs | Docker container (`geostrap-postgres`) |
-| Redis 7 | Rate limiting for ingest service | Docker container (`geostrap-redis`) |
+| Redis 7 | Rate limiting for both backend services | Docker container (`geostrap-redis`) |
 | Ingest API | FastAPI service — device-facing, handles RFID/GPS data ingestion | Local Python process (port 8000) |
 | API | FastAPI service — human-facing, handles auth, admin, RFID management, audit logs | Local Python process (port 8001) |
 | Web UI | React frontend — the browser-based admin interface | Local Node process (port 5173) |
 
 ```
 Browser (5173) ──► API (8001) ──► PostgreSQL
-                                    
+                          └──► Redis (login rate limiting)
+
 ESP32 Devices ──► Ingest (8000) ──► PostgreSQL
-                               └──► Redis (rate limiting)
+                               └──► Redis (device rate limiting)
 ```
 
 Both backend services share code via `apps/shared/` (database functions, schemas, auth utilities, metrics).
@@ -142,9 +143,11 @@ Not all services need every variable:
 | Variable | Ingest (8000) | API (8001) | Seed scripts |
 |----------|---------------|------------|--------------|
 | `DATABASE_URL` | Required | Required | Required |
-| `REDIS_URL` | Required | — | — |
+| `REDIS_URL` | Required | Required | — |
 | `RFID_INGEST_SHARED_KEY` | Required | — | — |
 | `JWT_SECRET` | — | Required | — |
+
+> `REDIS_URL` is required by both backend services. The ingest service uses it for device rate limiting; the API service uses it for login rate limiting.
 
 ### Step 6 — Run database migrations
 
@@ -195,7 +198,7 @@ Expected response: `{"status":"ok"}`
 uvicorn apps.api.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-Requires: `DATABASE_URL`, `JWT_SECRET`.
+Requires: `DATABASE_URL`, `JWT_SECRET`, `REDIS_URL`.
 
 Confirm it is running:
 
@@ -474,8 +477,8 @@ Device-facing endpoints. Authenticated via `X-DEVICE-KEY` header.
 | GET | `/healthz` | Health check |
 | GET | `/metrics` | Prometheus metrics (unauthenticated) |
 | POST | `/ingest/v1/position` | Ingest a GPS position |
-| POST | `/ingest/v1/rfid-read` | Ingest a single RFID read |
-| POST | `/ingest/v1/rfid-reads/batch` | Ingest a batch of RFID reads |
+| POST | `/ingest/v1/rfid-read` | Ingest a single RFID read. **Rate limited: 120 requests/minute per device key.** |
+| POST | `/ingest/v1/rfid-reads/batch` | Ingest a batch of RFID reads. **Rate limited: 60 requests/minute per device key.** |
 
 ### API — `http://localhost:8001`
 
@@ -485,7 +488,7 @@ Human-facing endpoints. Authenticated via JWT Bearer token (except `/auth/login`
 |--------|----------|-------------|
 | GET | `/healthz` | Health check |
 | GET | `/metrics` | Prometheus metrics (unauthenticated) |
-| POST | `/auth/login` | Login — returns access + refresh tokens |
+| POST | `/auth/login` | Login — returns access + refresh tokens. **Rate limited: 10 requests/minute per IP. Returns 429 on breach.** |
 | POST | `/auth/refresh` | Refresh an access token |
 | POST | `/auth/logout` | Logout |
 | GET | `/assets` | List all assets with current state |
@@ -588,6 +591,40 @@ Environment variables are not set in the current terminal session. Export them b
 ### `JWT_SECRET is required`
 
 The `JWT_SECRET` env var is not set in the terminal running the API service (port 8001). The ingest service does not need this variable.
+
+### `REDIS_URL is required` or Redis connection error on API startup
+
+`REDIS_URL` is required by both services. Ensure Redis is running and the variable is set in both the ingest and API service terminals:
+
+```bash
+docker compose ps
+# geostrap-redis should show "running"
+```
+
+Set the variable if missing:
+
+```bash
+export REDIS_URL=redis://localhost:6379
+```
+
+### Login returns HTTP 429 — "Too many login attempts"
+
+The login endpoint is rate limited to 10 requests per minute per IP address. This can be triggered unintentionally during rapid manual testing or automated scripts.
+
+Wait 60 seconds for the limit to reset, then retry. If it persists across sessions, the Redis container may need restarting:
+
+```bash
+docker compose restart redis
+```
+
+### Ingest RFID endpoint returns HTTP 429 — "Rate limit exceeded for this device"
+
+The RFID ingest endpoints are rate limited per device key:
+
+- `POST /ingest/v1/rfid-read` — 120 requests/minute
+- `POST /ingest/v1/rfid-reads/batch` — 60 requests/minute
+
+If a device or the simulator is hitting this in normal operation, something is sending more requests than expected. Check the simulator script or device firmware for a loop that runs too fast. Wait 60 seconds for the limit to reset.
 
 ### `relation "audit_logs" does not exist`
 

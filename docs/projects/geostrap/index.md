@@ -17,7 +17,7 @@ A pnpm monorepo with two language stacks:
 | Web UI | React 18 / TypeScript / Vite | 5173 | Admin frontend |
 | Shared library | Python | — | Common code: DB, schemas, auth, metrics |
 
-Both backend services share code via `apps/shared/` and write to the same PostgreSQL database. Redis is used by the ingest service for rate limiting.
+Both backend services share code via `apps/shared/` and write to the same PostgreSQL database. Redis is used by both services for rate limiting — the ingest service for per-device RFID throttling and the API service for login brute force protection.
 
 **Auth:** JWT-based for human users (API service), shared key header for devices (ingest service). All data is organisation-scoped via the authenticated user's JWT token.
 
