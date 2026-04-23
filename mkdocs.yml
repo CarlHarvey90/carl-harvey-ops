@@ -26,6 +26,7 @@ nav:
     - AWS: infrastructure/aws/index.md
     - Home Server: infrastructure/home-server/index.md
     - VMs: infrastructure/home-server/vms/index.md
+    - Immich: infrastructure/home-server/immich.md
   - Runbooks: runbooks/index.md
   - Incidents: incidents/index.md
   - Architecture: architecture/index.md
