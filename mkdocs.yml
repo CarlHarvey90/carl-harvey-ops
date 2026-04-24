@@ -27,6 +27,7 @@ nav:
     - Home Server: infrastructure/home-server/index.md
     - VMs: infrastructure/home-server/vms/index.md
     - Immich: infrastructure/home-server/immich.md
+    - k3s / Traefik: infrastructure/home-server/k3s/traefik.md
   - Runbooks: runbooks/index.md
   - Incidents: incidents/index.md
   - Architecture: architecture/index.md
